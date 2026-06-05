@@ -1,12 +1,24 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { type FormEvent, useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  type FormEvent,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { getSocket } from "@/lib/client/socket";
-import { getSessionId, getStoredName, setStoredName } from "@/lib/client/session";
+import {
+  getSessionId,
+  getStoredName,
+  setStoredName,
+} from "@/lib/client/session";
 import { landingCopy, type LandingLanguage } from "@/lib/landing-copy";
 import type { MatchTarget } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 type ModalMode = "create" | "join" | null;
 
@@ -48,7 +60,9 @@ function useModalA11y(
       const focusables = dialogRef.current.querySelectorAll<HTMLElement>(
         'button, [href], input, [tabindex]:not([tabindex="-1"])',
       );
-      const items = Array.from(focusables).filter((item) => !item.hasAttribute("disabled"));
+      const items = Array.from(focusables).filter(
+        (item) => !item.hasAttribute("disabled"),
+      );
       if (items.length === 0) {
         return;
       }
@@ -99,22 +113,32 @@ function ModalShell({
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-30 flex items-end justify-center bg-[rgba(5,6,8,0.6)] p-0 backdrop-blur-[12px] [animation:modalFade_0.25s_ease-out] sm:items-center sm:p-5"
+      onClick={onClose}
+    >
       <div
         ref={dialogRef}
-        className="modal-shell"
+        className="relative w-full rounded-t-[24px] border border-(--line) bg-[rgba(10,13,11,0.92)] p-7 shadow-[0_30px_90px_rgba(0,0,0,0.45)] [animation:modalSheet_0.3s_ease-out] sm:w-[min(100%,520px)] sm:rounded-3xl sm:[animation:modalPop_0.3s_ease-out]"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         onClick={(event) => event.stopPropagation()}
       >
-        <button type="button" className="modal-close" aria-label="Close" onClick={onClose}>
+        <button
+          type="button"
+          className="absolute right-3.5 top-3.5 flex h-9 w-9 items-center justify-center rounded-full border border-(--line) bg-transparent text-2xl leading-none text-(--ivory)"
+          aria-label="Close"
+          onClick={onClose}
+        >
           ×
         </button>
-        <h3 id={titleId} className="modal-title">
+        <h3 id={titleId} className="font-serif text-[26px] font-medium">
           {title}
         </h3>
-        <p className="modal-copy">{body}</p>
+        <p className="mt-2.5 text-[14.5px] leading-[1.6] text-(--muted)">
+          {body}
+        </p>
         {children}
       </div>
     </div>
@@ -167,22 +191,27 @@ export function LandingEntryModals({
     router.replace(language === "en" ? "/" : "/?lang=fa", { scroll: false });
   };
 
-  const createHref = language === "en" ? "/?modal=create" : "/?lang=fa&modal=create";
+  const createHref =
+    language === "en" ? "/?modal=create" : "/?lang=fa&modal=create";
   const joinHref = language === "en" ? "/?modal=join" : "/?lang=fa&modal=join";
 
   useEffect(() => {
-    document.querySelectorAll<HTMLElement>("[data-create-link]").forEach((element) => {
-      element.onclick = (event) => {
-        event.preventDefault();
-        router.replace(createHref, { scroll: false });
-      };
-    });
-    document.querySelectorAll<HTMLElement>("[data-join-link]").forEach((element) => {
-      element.onclick = (event) => {
-        event.preventDefault();
-        router.replace(joinHref, { scroll: false });
-      };
-    });
+    document
+      .querySelectorAll<HTMLElement>("[data-create-link]")
+      .forEach((element) => {
+        element.onclick = (event) => {
+          event.preventDefault();
+          router.replace(createHref, { scroll: false });
+        };
+      });
+    document
+      .querySelectorAll<HTMLElement>("[data-join-link]")
+      .forEach((element) => {
+        element.onclick = (event) => {
+          event.preventDefault();
+          router.replace(joinHref, { scroll: false });
+        };
+      });
   }, [createHref, joinHref, router]);
 
   const submitCreate = (event: FormEvent) => {
@@ -283,10 +312,11 @@ export function LandingEntryModals({
         initialFocusRef={createInputRef}
       >
         <form onSubmit={submitCreate}>
-          <label className="field mt-6">
+          <label className="mt-6 flex flex-col gap-2.5 text-(--muted)">
             <span>{copy.yourName}</span>
             <input
               ref={createInputRef}
+              className="w-full rounded-2xl border border-(--line) bg-black/30 px-4 py-3.5 text-(--ivory)"
               value={createName}
               placeholder={copy.egSara}
               onChange={(event) => setCreateName(event.target.value)}
@@ -294,32 +324,58 @@ export function LandingEntryModals({
             />
           </label>
           <div className="mt-5">
-            <p className="mono-label">{copy.matchLength}</p>
-            <div className="mt-3 chip-row">
+            <p
+              className={cn(
+                "font-mono text-[12px] uppercase tracking-[0.32em]",
+                language === "fa" &&
+                  "font-fa-sans normal-case tracking-[0.04em]",
+              )}
+            >
+              {copy.matchLength}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-3">
               {copy.chips.map((chip) => (
                 <button
                   key={chip.value}
                   type="button"
-                  className={chip.value === target ? "length-chip active" : "length-chip"}
+                  className={cn(
+                    "min-w-[94px] rounded-[14px] border px-5.5 py-5 text-center transition-[transform,border-color,background] duration-300 hover:-translate-y-1",
+                    chip.value === target
+                      ? "border-transparent bg-[linear-gradient(180deg,var(--gold-soft),var(--gold))] text-[#241a08]"
+                      : "border-(--line) bg-black/20 hover:border-[rgba(227,178,90,0.5)]",
+                  )}
                   onClick={() => setTarget(chip.value)}
                 >
-                  <span className="length-chip-number">
-                    {language === "fa" ? chip.value.toLocaleString("fa-IR") : chip.value}
+                  <span className="block font-mono text-[34px] font-bold leading-none">
+                    {language === "fa"
+                      ? chip.value.toLocaleString("fa-IR")
+                      : chip.value}
                   </span>
-                  <span className="length-chip-label">{chip.label}</span>
+                  <span
+                    className={cn(
+                      "mt-1.5 block text-[10px] uppercase tracking-[0.18em] opacity-70",
+                      language === "fa" &&
+                        "font-fa-sans normal-case tracking-[0.04em]",
+                    )}
+                  >
+                    {chip.label}
+                  </span>
                 </button>
               ))}
             </div>
           </div>
           <button
             type="button"
-            className="advanced-toggle mt-5"
+            className={cn(
+              "mt-5 bg-transparent p-0 font-mono text-[12px] uppercase tracking-[0.32em] text-(--muted)",
+              language === "fa" && "font-fa-sans normal-case tracking-[0.04em]",
+            )}
             onClick={() => setAdvancedOpen((current) => !current)}
           >
             {copy.advanced}
           </button>
           {advancedOpen ? (
-            <label className="advanced-row">
+            <label className="mt-3 flex items-center justify-between text-(--ivory)">
               <span>{copy.kotBonus}</span>
               <input
                 type="checkbox"
@@ -328,10 +384,12 @@ export function LandingEntryModals({
               />
             </label>
           ) : null}
-          {createError ? <p className="error-copy mt-3">{createError}</p> : null}
+          {createError ? (
+            <p className="mt-3 text-sm text-(--crimson)">{createError}</p>
+          ) : null}
           <button
             type="submit"
-            className="button-primary mt-6 w-full justify-center"
+            className="mt-6 inline-flex w-full items-center justify-center rounded-full bg-[linear-gradient(180deg,var(--gold-soft),var(--gold))] px-5.5 py-3.25 text-[12px] font-bold uppercase tracking-[0.08em] text-[#241a08] shadow-[0_8px_30px_rgba(227,178,90,0.2)] transition-transform duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0"
             disabled={createLoading}
           >
             {createLoading ? copy.creating : copy.createTable}
@@ -347,10 +405,11 @@ export function LandingEntryModals({
         initialFocusRef={joinCode.trim() ? joinNameRef : joinCodeRef}
       >
         <form onSubmit={submitJoin}>
-          <label className="field mt-6">
+          <label className="mt-6 flex flex-col gap-2.5 text-(--muted)">
             <span>{copy.roomCode}</span>
             <input
               ref={joinCodeRef}
+              className="w-full rounded-2xl border border-(--line) bg-black/30 px-4 py-3.5 text-(--ivory)"
               value={joinCode}
               placeholder={copy.egCode}
               onChange={(event) =>
@@ -364,20 +423,23 @@ export function LandingEntryModals({
               maxLength={4}
             />
           </label>
-          <label className="field mt-4">
+          <label className="mt-4 flex flex-col gap-2.5 text-(--muted)">
             <span>{copy.yourName}</span>
             <input
               ref={joinNameRef}
+              className="w-full rounded-2xl border border-(--line) bg-black/30 px-4 py-3.5 text-(--ivory)"
               value={joinName}
               placeholder={copy.egSara}
               onChange={(event) => setJoinName(event.target.value)}
               maxLength={20}
             />
           </label>
-          {joinError ? <p className="error-copy mt-3">{joinError}</p> : null}
+          {joinError ? (
+            <p className="mt-3 text-sm text-(--crimson)">{joinError}</p>
+          ) : null}
           <button
             type="submit"
-            className="button-primary mt-6 w-full justify-center"
+            className="mt-6 inline-flex w-full items-center justify-center rounded-full bg-[linear-gradient(180deg,var(--gold-soft),var(--gold))] px-5.5 py-3.25 text-[12px] font-bold uppercase tracking-[0.08em] text-[#241a08] shadow-[0_8px_30px_rgba(227,178,90,0.2)] transition-transform duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0"
             disabled={joinLoading}
           >
             {joinLoading ? copy.joining : copy.joinTable}
@@ -385,7 +447,7 @@ export function LandingEntryModals({
           {joinCanSpectate ? (
             <button
               type="button"
-              className="button-secondary mt-3 w-full justify-center"
+              className="mt-3 inline-flex w-full items-center justify-center rounded-full border border-(--line) bg-(--glass) px-5.5 py-3.25 text-(--ivory) backdrop-blur-[10px] transition-transform duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0"
               disabled={joinLoading}
               onClick={() => attemptJoin(true)}
             >

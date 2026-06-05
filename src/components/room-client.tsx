@@ -6,7 +6,11 @@ import { useEffect, useMemo, useState } from "react";
 
 import { LanguageProvider, useLanguage } from "@/components/language-provider";
 import { getSocket } from "@/lib/client/socket";
-import { getSessionId, getStoredName, setStoredName } from "@/lib/client/session";
+import {
+  getSessionId,
+  getStoredName,
+  setStoredName,
+} from "@/lib/client/session";
 import {
   displaySuit,
   isRedSuit,
@@ -14,7 +18,14 @@ import {
   teamOf,
 } from "@/lib/hokm/engine";
 import { cn, copyText, formatCountdown } from "@/lib/utils";
-import type { Card, MatchTarget, RoomSnapshot, Seat, Suit, Team } from "@/lib/types";
+import type {
+  Card,
+  MatchTarget,
+  RoomSnapshot,
+  Seat,
+  Suit,
+  Team,
+} from "@/lib/types";
 
 const TARGETS: MatchTarget[] = [3, 5, 7];
 const SUIT_OPTIONS: Suit[] = ["spades", "hearts", "diamonds", "clubs"];
@@ -52,7 +63,9 @@ function RoomContent({ roomCode }: RoomClientProps) {
   const [joining, setJoining] = useState(false);
   const [entryError, setEntryError] = useState<string | null>(null);
   const [sortRequested, setSortRequested] = useState(false);
-  const [dismissedSurrenderVote, setDismissedSurrenderVote] = useState<string | null>(null);
+  const [dismissedSurrenderVote, setDismissedSurrenderVote] = useState<
+    string | null
+  >(null);
   const [entryCanSpectate, setEntryCanSpectate] = useState(false);
   const sessionId = useMemo(() => getSessionId(), []);
 
@@ -161,23 +174,23 @@ function RoomContent({ roomCode }: RoomClientProps) {
   const isSpectator = snapshot?.player.isSpectator ?? false;
   const round = snapshot?.game.series?.currentMatch?.round;
   const amHost = meSeat === snapshot?.game.hostSeat;
-  const displayHand =
-    snapshot?.player.hand
-      ? sortRequested
-        ? sortCardsBySuitAndRank(snapshot.player.hand)
-        : snapshot.player.hand
-      : [];
+  const displayHand = snapshot?.player.hand
+    ? sortRequested
+      ? sortCardsBySuitAndRank(snapshot.player.hand)
+      : snapshot.player.hand
+    : [];
   const joinUrl =
     typeof window !== "undefined" && snapshot?.game.roomCode
       ? `${window.location.origin}/room/${snapshot.game.roomCode}`
       : "";
 
-  const canStart = snapshot?.game.stage === "LOBBY" && snapshot.room.seatCount === 4 && amHost;
+  const canStart =
+    snapshot?.game.stage === "LOBBY" && snapshot.room.seatCount === 4 && amHost;
   const currentTurnSeat = round?.trick.currentTurn ?? null;
   const currentTurnPlayer =
     currentTurnSeat !== null
-      ? snapshot?.game.seats.find((seat) => seat?.seat === currentTurnSeat)?.displayName ??
-        "Player"
+      ? (snapshot?.game.seats.find((seat) => seat?.seat === currentTurnSeat)
+          ?.displayName ?? "Player")
       : null;
   const trumpSuitClass = round?.trumpSuit
     ? isRedSuit(round.trumpSuit)
@@ -185,10 +198,14 @@ function RoomContent({ roomCode }: RoomClientProps) {
       : "suit-dark"
     : "text-[--gold]";
   const myTeam: Team | null = meSeat !== null ? teamOf(meSeat) : null;
-  const myTeamVotes = myTeam ? (snapshot?.game.surrender?.votes[myTeam] ?? []) : [];
+  const myTeamVotes = myTeam
+    ? (snapshot?.game.surrender?.votes[myTeam] ?? [])
+    : [];
   const iDeclaredSurrender = meSeat !== null && myTeamVotes.includes(meSeat);
   const teammateVoteActive =
-    meSeat !== null && myTeamVotes.length === 1 && !myTeamVotes.includes(meSeat);
+    meSeat !== null &&
+    myTeamVotes.length === 1 &&
+    !myTeamVotes.includes(meSeat);
   const surrenderVoteKey = `${myTeamVotes.join("-")}:${round?.trickNumber ?? 0}:${snapshot?.game.stage ?? ""}`;
   const showSurrenderPrompt =
     teammateVoteActive &&
@@ -233,14 +250,13 @@ function RoomContent({ roomCode }: RoomClientProps) {
     language === "fa"
       ? "بعد از تمام شدن این نوبت شما بازی می‌کنید."
       : "You can play as soon as this turn ends.";
-  const surrenderButtonLabel =
-    iDeclaredSurrender
-      ? language === "fa"
-        ? `اعلام شکست ${myTeamVotes.length}/2`
-        : `Defeat declared ${myTeamVotes.length}/2`
-      : language === "fa"
-        ? "اعلام شکست"
-        : "Declare defeat";
+  const surrenderButtonLabel = iDeclaredSurrender
+    ? language === "fa"
+      ? `اعلام شکست ${myTeamVotes.length}/2`
+      : `Defeat declared ${myTeamVotes.length}/2`
+    : language === "fa"
+      ? "اعلام شکست"
+      : "Declare defeat";
 
   const copyShareLink = async () => {
     if (!joinUrl) {
@@ -251,7 +267,8 @@ function RoomContent({ roomCode }: RoomClientProps) {
     window.setTimeout(() => setCopied(false), 1500);
   };
 
-  const emit = (event: string, payload: object) => getSocket().emit(event, payload);
+  const emit = (event: string, payload: object) =>
+    getSocket().emit(event, payload);
 
   const renderCardFace = (card: Card, compact = false) => {
     const suitClass = isRedSuit(card.suit) ? "suit-red" : "suit-dark";
@@ -266,7 +283,13 @@ function RoomContent({ roomCode }: RoomClientProps) {
           <span className="card-rank-mini">{card.rank}</span>
           <span className="card-suit-mini">{displaySuit(card.suit)}</span>
         </span>
-        <div className={cn("card-center-art", compact && "card-center-art-compact", suitClass)}>
+        <div
+          className={cn(
+            "card-center-art",
+            compact && "card-center-art-compact",
+            suitClass,
+          )}
+        >
           <span className={cn(card.rank === "A" ? "ace-suit" : "pip-suit")}>
             {displaySuit(card.suit)}
           </span>
@@ -284,8 +307,11 @@ function RoomContent({ roomCode }: RoomClientProps) {
               {t.appName}
             </Link>
             <div className="text-sm text-[--muted]">
-              {language === "fa" ? "\u0627\u062a\u0627\u0642" : "ROOM"}{" "}
-              <span className="mono-label text-[--ivory]">{snapshot?.game.roomCode ?? roomCode}</span>
+              {language === "fa" ? "\u0627\u062a\u0627\u0642" : "ROOM"}
+              {" - "}
+              <span className="mono-label text-[--ivory]">
+                {snapshot?.game.roomCode ?? roomCode}
+              </span>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -323,7 +349,7 @@ function RoomContent({ roomCode }: RoomClientProps) {
                   <p className="mono-label">{t.shareLink}</p>
                   <button
                     type="button"
-                    className="button-secondary share-link-button mt-3 w-full justify-center"
+                    className="button-secondary mt-3 w-full justify-center"
                     onClick={copyShareLink}
                   >
                     {copied ? t.copied : joinUrl || "Waiting..."}
@@ -338,7 +364,11 @@ function RoomContent({ roomCode }: RoomClientProps) {
                           key={value}
                           type="button"
                           disabled={!amHost}
-                          className={snapshot.game.pointTarget === value ? "chip active" : "chip"}
+                          className={
+                            snapshot.game.pointTarget === value
+                              ? "chip active"
+                              : "chip"
+                          }
                           onClick={() =>
                             emit("set_match_target", {
                               roomCode: snapshot.game.roomCode,
@@ -366,7 +396,8 @@ function RoomContent({ roomCode }: RoomClientProps) {
                     </button>
                   </>
                 ) : null}
-                {snapshot.game.stage === "SERIES_OVER" && snapshot.game.shareResultId ? (
+                {snapshot.game.stage === "SERIES_OVER" &&
+                snapshot.game.shareResultId ? (
                   <Link
                     href={`/results/${snapshot.game.shareResultId}`}
                     className="button-primary mt-6 w-full justify-center"
@@ -380,12 +411,20 @@ function RoomContent({ roomCode }: RoomClientProps) {
                 <p className="mono-label">{t.seriesWins}</p>
                 <div className="mt-4 grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.24em] text-[--muted]">Team A</p>
-                    <p className="mt-2 text-3xl text-[--gold]">{snapshot.game.series?.wins.A ?? 0}</p>
+                    <p className="text-xs uppercase tracking-[0.24em] text-[--muted]">
+                      Team A
+                    </p>
+                    <p className="mt-2 text-3xl text-[--gold]">
+                      {snapshot.game.series?.wins.A ?? 0}
+                    </p>
                   </div>
                   <div>
-                    <p className="text-xs uppercase tracking-[0.24em] text-[--muted]">Team B</p>
-                    <p className="mt-2 text-3xl text-[--team-b]">{snapshot.game.series?.wins.B ?? 0}</p>
+                    <p className="text-xs uppercase tracking-[0.24em] text-[--muted]">
+                      Team B
+                    </p>
+                    <p className="mt-2 text-3xl text-[--team-b]">
+                      {snapshot.game.series?.wins.B ?? 0}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -395,12 +434,20 @@ function RoomContent({ roomCode }: RoomClientProps) {
                   <p className="mono-label">{t.roundTricks}</p>
                   <div className="mt-4 grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-xs uppercase tracking-[0.24em] text-[--muted]">Team A</p>
-                      <p className="mt-2 text-3xl text-[--gold]">{round.trickCounts.A}</p>
+                      <p className="text-xs uppercase tracking-[0.24em] text-[--muted]">
+                        Team A
+                      </p>
+                      <p className="mt-2 text-3xl text-[--gold]">
+                        {round.trickCounts.A}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-xs uppercase tracking-[0.24em] text-[--muted]">Team B</p>
-                      <p className="mt-2 text-3xl text-[--team-b]">{round.trickCounts.B}</p>
+                      <p className="text-xs uppercase tracking-[0.24em] text-[--muted]">
+                        Team B
+                      </p>
+                      <p className="mt-2 text-3xl text-[--team-b]">
+                        {round.trickCounts.B}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -414,14 +461,17 @@ function RoomContent({ roomCode }: RoomClientProps) {
                     <p className="mono-label">{t.spectators}</p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {snapshot.game.spectators.map((spectator) => (
-                        <span key={spectator.sessionId} className="spectator-pill">
+                        <span
+                          key={spectator.sessionId}
+                          className="spectator-pill"
+                        >
                           {spectator.displayName}
                         </span>
                       ))}
                     </div>
                   </div>
                 ) : null}
-                <div className="text-right">
+                <div className="text-center">
                   <p className="mono-label">{t.hokm}</p>
                   <div
                     className={cn(
@@ -453,17 +503,28 @@ function RoomContent({ roomCode }: RoomClientProps) {
                   >
                     <div className="seat-profile">
                       {seat && !seat.connected ? (
-                        <div className="seat-reconnecting" aria-label={t.reconnecting}>
+                        <div
+                          className="seat-reconnecting"
+                          aria-label={t.reconnecting}
+                        >
                           <span className="seat-reconnecting-ring" />
                           <span className="seat-reconnecting-dot" />
                         </div>
                       ) : (
-                        <div className="avatar-ring">{seat?.displayName?.slice(0, 1) ?? "?"}</div>
+                        <div className="avatar-ring">
+                          {seat?.displayName?.slice(0, 1) ?? "?"}
+                        </div>
                       )}
                     </div>
-                    <div className="mt-3 text-lg text-[--ivory]">{seat?.displayName ?? "Empty"}</div>
+                    <div className="mt-3 text-lg text-[--ivory]">
+                      {seat?.displayName ?? "Empty"}
+                    </div>
                     <div className="mt-1 text-xs uppercase tracking-[0.22em] text-[--muted]">
-                      {seat ? (!seat.connected ? t.reconnecting : `Team ${teamOf(seat.seat)}`) : ""}
+                      {seat
+                        ? !seat.connected
+                          ? t.reconnecting
+                          : `Team ${teamOf(seat.seat)}`
+                        : ""}
                     </div>
                     {round?.hakemSeat === seat?.seat ? (
                       <span className="seat-badge">{t.hakem}</span>
@@ -483,79 +544,81 @@ function RoomContent({ roomCode }: RoomClientProps) {
                   <div className={statusTone}>
                     {statusHeading ? <strong>{statusHeading}</strong> : null}
                     <span>
-                    {snapshot.game.pause
-                      ? `${t.waitingReconnect}: ${snapshot.game.pause.disconnectedName} Ã‚Â· ${formatCountdown(snapshot.game.pause.pausedUntil)}`
-                      : snapshot.game.lastMessage ?? "Ready"}
+                      {snapshot.game.pause
+                        ? `${t.waitingReconnect}: ${snapshot.game.pause.disconnectedName} Ã‚Â· ${formatCountdown(snapshot.game.pause.pausedUntil)}`
+                        : (snapshot.game.lastMessage ?? "Ready")}
                     </span>
                   </div>
                 </div>
               </div>
 
               {!isSpectator ? (
-              <div className="mt-6">
-                <div className="flex items-center justify-between gap-4">
-                  <p className="mono-label">{t.yourHand}</p>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      className="button-secondary button-compact"
-                      onClick={() => setSortRequested((current) => !current)}
-                    >
-                      {sortRequested ? t.sortedCards : t.sortCards}
-                    </button>
-                    {(snapshot.game.stage === "IN_TRICK" ||
-                      snapshot.game.stage === "AWAITING_TRUMP") &&
-                    meSeat !== null ? (
+                <div className="mt-6">
+                  <div className="flex items-center justify-between gap-4">
+                    <p className="mono-label">{t.yourHand}</p>
+                    <div className="flex items-center gap-3">
                       <button
                         type="button"
-                        className={cn(
-                          "button-secondary button-compact surrender-button",
-                          iDeclaredSurrender && "surrender-button-active",
-                        )}
-                        onClick={() =>
-                          emit("toggle_surrender", {
-                            roomCode: snapshot.game.roomCode,
-                            sessionId,
-                          })
-                        }
+                        className="button-secondary button-compact"
+                        onClick={() => setSortRequested((current) => !current)}
                       >
-                        {surrenderButtonLabel}
+                        {sortRequested ? t.sortedCards : t.sortCards}
                       </button>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="hand-zone mt-4">
-                  {!isMyTurn && round && currentTurnPlayer ? (
-                    <div className="turn-overlay">
-                      <strong>{turnOverlayTitle}</strong>
-                      <span>{turnOverlayBody}</span>
+                      {(snapshot.game.stage === "IN_TRICK" ||
+                        snapshot.game.stage === "AWAITING_TRUMP") &&
+                      meSeat !== null ? (
+                        <button
+                          type="button"
+                          className={cn(
+                            "button-secondary button-compact surrender-button",
+                            iDeclaredSurrender && "surrender-button-active",
+                          )}
+                          onClick={() =>
+                            emit("toggle_surrender", {
+                              roomCode: snapshot.game.roomCode,
+                              sessionId,
+                            })
+                          }
+                        >
+                          {surrenderButtonLabel}
+                        </button>
+                      ) : null}
                     </div>
-                  ) : null}
-                  <div className="hand-row">
-                  {displayHand.map((card) => {
-                    return (
-                      <button
-                        key={card.code}
-                        type="button"
-                        className={`hand-card ${isRedSuit(card.suit) ? "suit-red" : "suit-dark"}`}
-                        disabled={!isMyTurn}
-                        onClick={() =>
-                          emit("play_card", {
-                            roomCode: snapshot.game.roomCode,
-                            sessionId,
-                            cardCode: card.code,
-                          })
-                        }
-                      >
-                        {renderCardFace(card)}
-                      </button>
-                    );
-                  })}
+                  </div>
+                  <div className="hand-zone mt-4">
+                    {!isMyTurn && round && currentTurnPlayer ? (
+                      <div className="turn-overlay">
+                        <strong>{turnOverlayTitle}</strong>
+                        <span>{turnOverlayBody}</span>
+                      </div>
+                    ) : null}
+                    <div className="hand-row">
+                      {displayHand.map((card) => {
+                        return (
+                          <button
+                            key={card.code}
+                            type="button"
+                            className={`hand-card ${isRedSuit(card.suit) ? "suit-red" : "suit-dark"}`}
+                            disabled={!isMyTurn}
+                            onClick={() =>
+                              emit("play_card", {
+                                roomCode: snapshot.game.roomCode,
+                                sessionId,
+                                cardCode: card.code,
+                              })
+                            }
+                          >
+                            {renderCardFace(card)}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
-              </div>
               ) : (
-                <div className="panel mt-6 p-5 text-sm text-[--muted]">{t.spectatorView}</div>
+                <div className="panel mt-6 p-5 text-sm text-[--muted]">
+                  {t.spectatorView}
+                </div>
               )}
 
               {snapshot.game.pause && amHost ? (
@@ -590,12 +653,18 @@ function RoomContent({ roomCode }: RoomClientProps) {
             </section>
           </section>
         ) : (
-          <section className="panel p-8 text-[--muted]">Connecting to roomÃ¢â‚¬Â¦</section>
+          <section className="panel p-8 text-[--muted]">
+            Connecting to roomÃ¢â‚¬Â¦
+          </section>
         )}
 
         {!snapshot ? (
           <div className="modal-backdrop">
-            <div className="modal-shell modal-sheet" role="dialog" aria-modal="true">
+            <div
+              className="modal-shell modal-sheet"
+              role="dialog"
+              aria-modal="true"
+            >
               <button
                 type="button"
                 className="modal-close"
@@ -604,8 +673,16 @@ function RoomContent({ roomCode }: RoomClientProps) {
               >
                 Ãƒâ€”
               </button>
-              <p className="eyebrow">{language === "fa" ? "Ã™Â¾Ã›Å’Ã™Ë†Ã˜Â³Ã˜ÂªÃ™â€  Ã˜Â¨Ã™â€¡ Ã™â€¦Ã›Å’Ã˜Â²" : "Join a table"}</p>
-              <h2 className="modal-title">{language === "fa" ? "Ã™Â¾Ã›Å’Ã™Ë†Ã˜Â³Ã˜ÂªÃ™â€  Ã˜Â¨Ã™â€¡ Ã™â€¦Ã›Å’Ã˜Â²" : "Join a table"}</h2>
+              <p className="eyebrow">
+                {language === "fa"
+                  ? "Ã™Â¾Ã›Å’Ã™Ë†Ã˜Â³Ã˜ÂªÃ™â€  Ã˜Â¨Ã™â€¡ Ã™â€¦Ã›Å’Ã˜Â²"
+                  : "Join a table"}
+              </p>
+              <h2 className="modal-title">
+                {language === "fa"
+                  ? "Ã™Â¾Ã›Å’Ã™Ë†Ã˜Â³Ã˜ÂªÃ™â€  Ã˜Â¨Ã™â€¡ Ã™â€¦Ã›Å’Ã˜Â²"
+                  : "Join a table"}
+              </h2>
               <p className="modal-copy">
                 {language === "fa"
                   ? "ÃšÂ©Ã˜Â¯Ã›Å’ Ã˜Â±Ã˜Â§ ÃšÂ©Ã™â€¡ Ã˜Â¯Ã™Ë†Ã˜Â³Ã˜ÂªÃ˜Âª Ã™ÂÃ˜Â±Ã˜Â³Ã˜ÂªÃ˜Â§Ã˜Â¯Ã™â€¡ Ã™Ë†Ã˜Â§Ã˜Â±Ã˜Â¯ ÃšÂ©Ã™â€ ."
@@ -624,7 +701,9 @@ function RoomContent({ roomCode }: RoomClientProps) {
                   maxLength={20}
                 />
               </label>
-              {entryError ? <p className="error-copy mt-3">{entryError}</p> : null}
+              {entryError ? (
+                <p className="error-copy mt-3">{entryError}</p>
+              ) : null}
               <button
                 type="button"
                 className="button-primary mt-6 w-full justify-center"
@@ -653,9 +732,14 @@ function RoomContent({ roomCode }: RoomClientProps) {
           </div>
         ) : null}
 
-        {snapshot?.game.stage === "AWAITING_TRUMP" && meSeat === round?.hakemSeat ? (
+        {snapshot?.game.stage === "AWAITING_TRUMP" &&
+        meSeat === round?.hakemSeat ? (
           <div className="modal-backdrop">
-            <div className="modal-shell modal-shell-large" role="dialog" aria-modal="true">
+            <div
+              className="modal-shell modal-shell-large"
+              role="dialog"
+              aria-modal="true"
+            >
               <p className="eyebrow">{t.chooseHokm}</p>
               <h2 className="modal-title">{t.chooseHokm}</h2>
               <p className="modal-copy">{t.chooseHokmBody}</p>
@@ -673,8 +757,12 @@ function RoomContent({ roomCode }: RoomClientProps) {
                       })
                     }
                   >
-                    <span className="hokm-choice-symbol">{displaySuit(suit)}</span>
-                    <span className="hokm-choice-label">{t[suitLabelKey[suit]]}</span>
+                    <span className="hokm-choice-symbol">
+                      {displaySuit(suit)}
+                    </span>
+                    <span className="hokm-choice-label">
+                      {t[suitLabelKey[suit]]}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -684,7 +772,11 @@ function RoomContent({ roomCode }: RoomClientProps) {
 
         {snapshot && showSurrenderPrompt ? (
           <div className="modal-backdrop">
-            <div className="modal-shell modal-sheet surrender-modal" role="dialog" aria-modal="true">
+            <div
+              className="modal-shell modal-sheet surrender-modal"
+              role="dialog"
+              aria-modal="true"
+            >
               <button
                 type="button"
                 className="modal-close"
