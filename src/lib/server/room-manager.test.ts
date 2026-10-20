@@ -8,12 +8,30 @@ describe("RoomManager", () => {
     const room = manager.createRoom({
       displayName: "Host",
       sessionId: "session-host",
+      mode: 2,
       pointTarget: 7,
     });
 
     expect(room.seats[0]?.displayName).toBe("Host");
+    expect(room.mode).toBe(2);
     expect(room.pointTarget).toBe(7);
     expect(room.seriesTarget).toBe(7);
+  });
+
+  it("normalizes the two-player mode at room creation", () => {
+    const manager = new RoomManager();
+    const room = manager.createRoom({
+      displayName: "Host",
+      sessionId: "session-host",
+      mode: 2,
+      pointTarget: 7,
+    });
+
+    expect(room.mode).toBe(2);
+    manager.joinRoom({ roomCode: room.code, displayName: "Guest", sessionId: "s1" });
+    expect(() =>
+      manager.startSeries({ roomCode: room.code, sessionId: "session-host" }),
+    ).not.toThrow();
   });
 
   it("fills open seats and rejects a fifth player", () => {
@@ -30,6 +48,22 @@ describe("RoomManager", () => {
 
     expect(() =>
       manager.joinRoom({ roomCode: room.code, displayName: "P4", sessionId: "s4" }),
+    ).toThrow(/full/i);
+  });
+
+  it("caps a two-player room at two seats", () => {
+    const manager = new RoomManager();
+    const room = manager.createRoom({
+      displayName: "Host",
+      sessionId: "s0",
+      mode: 2,
+      pointTarget: 7,
+    });
+
+    manager.joinRoom({ roomCode: room.code, displayName: "P1", sessionId: "s1" });
+
+    expect(() =>
+      manager.joinRoom({ roomCode: room.code, displayName: "P2", sessionId: "s2" }),
     ).toThrow(/full/i);
   });
 
@@ -127,5 +161,23 @@ describe("RoomManager", () => {
 
     manager.toggleSurrender({ roomCode: room.code, sessionId: "s2" });
     expect(manager.buildSnapshot(room.code, "s0").game.stage).toBe("SERIES_OVER");
+  });
+
+  it("redacts the opponent hand from a two-player snapshot", () => {
+    const manager = new RoomManager();
+    const room = manager.createRoom({
+      displayName: "Host",
+      sessionId: "s0",
+      mode: 2,
+      pointTarget: 7,
+    });
+
+    manager.joinRoom({ roomCode: room.code, displayName: "Guest", sessionId: "s1" });
+    manager.startSeries({ roomCode: room.code, sessionId: "s0" });
+
+    const hostView = manager.buildSnapshot(room.code, "s0");
+    expect(hostView.game.mode).toBe(2);
+    expect(hostView.player.hand).toHaveLength(5);
+    expect(hostView.game.series?.currentMatch?.round?.handCounts[1]).toBe(5);
   });
 });

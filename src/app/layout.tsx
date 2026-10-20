@@ -2,9 +2,8 @@ import type { Metadata } from "next";
 import {
   Fraunces,
   Hanken_Grotesk,
-  Markazi_Text,
+  Rubik,
   Space_Mono,
-  Vazirmatn,
 } from "next/font/google";
 import "./globals.css";
 
@@ -24,12 +23,12 @@ const mono = Space_Mono({
   weight: ["400", "700"],
 });
 
-const persianSans = Vazirmatn({
+const persianSans = Rubik({
   variable: "--font-fa-sans",
   subsets: ["arabic"],
 });
 
-const persianSerif = Markazi_Text({
+const persianSerif = Rubik({
   variable: "--font-fa-serif",
   subsets: ["arabic"],
 });

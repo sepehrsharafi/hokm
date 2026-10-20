@@ -1,13 +1,14 @@
 import {
   MATCH_TARGETS,
+  PLAYER_MODES,
   RANKS,
-  SEATS,
   SERIES_TARGETS,
   SUITS,
   type Card,
   type MatchState,
   type MatchTarget,
   type PlayedCard,
+  type PlayerMode,
   type Rank,
   type RoundState,
   type Seat,
@@ -40,9 +41,8 @@ export type HokmTransition =
   | { kind: "match_over"; message: string }
   | { kind: "series_over"; message: string };
 
-export const teamOf = (seat: Seat): Team => (seat % 2 === 0 ? "A" : "B");
-export const nextSeat = (seat: Seat): Seat => ((seat + 1) % 4) as Seat;
-export const previousSeat = (seat: Seat): Seat => ((seat + 3) % 4) as Seat;
+const TWO_PLAYER_SEATS = [0, 1] as const;
+const FOUR_PLAYER_SEATS = [0, 1, 2, 3] as const;
 
 const createDeck = (): Card[] =>
   SUITS.flatMap((suit) =>
@@ -73,6 +73,11 @@ const emptyHands = (): Record<Seat, Card[]> => ({
 
 const emptyScores = (): Record<Team, number> => ({ A: 0, B: 0 });
 
+const activeSeatsForMode = (mode: PlayerMode) =>
+  mode === 2 ? [...TWO_PLAYER_SEATS] : [...FOUR_PLAYER_SEATS];
+
+export const activeSeats = activeSeatsForMode;
+
 const createTrick = (leader: Seat): TrickState => ({
   leader,
   currentTurn: leader,
@@ -89,6 +94,41 @@ export const sortCardsBySuitAndRank = (hand: Card[]) =>
     }
     return RANK_VALUE[right.rank] - RANK_VALUE[left.rank];
   });
+
+const nextSeatIndex = (mode: PlayerMode, seat: Seat) => {
+  const seats = activeSeatsForMode(mode);
+  const index = seats.indexOf(seat);
+  if (index === -1) {
+    throw new Error("Seat is not active in this mode.");
+  }
+  return (index + 1) % seats.length;
+};
+
+export const nextSeat = (seat: Seat, mode: PlayerMode = 4): Seat =>
+  activeSeatsForMode(mode)[nextSeatIndex(mode, seat)] as Seat;
+
+export const previousSeat = (seat: Seat, mode: PlayerMode = 4): Seat => {
+  const seats = activeSeatsForMode(mode);
+  const index = seats.indexOf(seat);
+  if (index === -1) {
+    throw new Error("Seat is not active in this mode.");
+  }
+  return seats[(index + seats.length - 1) % seats.length] as Seat;
+};
+
+export const opposingSeat = (seat: Seat): Seat => {
+  if (seat !== 0 && seat !== 1) {
+    throw new Error("Two-player opposing seat lookup only supports seats 0 and 1.");
+  }
+  return (seat === 0 ? 1 : 0) as Seat;
+};
+
+export const teamOf = (seat: Seat, mode: PlayerMode = 4): Team => {
+  if (mode === 2) {
+    return seat === 0 ? "A" : "B";
+  }
+  return seat % 2 === 0 ? "A" : "B";
+};
 
 const resolveTrickWinner = (cards: PlayedCard[], trumpSuit: Suit, ledSuit: Suit): Seat =>
   cards.reduce((best, current) => {
@@ -113,48 +153,140 @@ const resolveTrickWinner = (cards: PlayedCard[], trumpSuit: Suit, ledSuit: Suit)
     return RANK_VALUE[current.card.rank] > RANK_VALUE[best.card.rank] ? current : best;
   }).seat;
 
-const dealInitialRound = (hakemSeat: Seat, deck: Card[]): RoundState => {
+const chooseHakemForTwoPlayers = (rng: () => number): Seat => {
+  const deck = shuffleDeck(rng);
+  let cursor = 0;
+  let seat: Seat = 0;
+  while (cursor < deck.length) {
+    if (deck[cursor].rank === "A") {
+      return seat;
+    }
+    cursor += 1;
+    seat = nextSeat(seat, 2);
+  }
+  return 0;
+};
+
+const dealInitialRound = (mode: PlayerMode, hakemSeat: Seat, deck: Card[]): RoundState => {
   const hands = emptyHands();
-  hands[hakemSeat] = deck.splice(0, 5);
+
+  if (mode === 4) {
+    hands[hakemSeat] = deck.splice(0, 5);
+  } else {
+    const opponentSeat = opposingSeat(hakemSeat);
+    hands[hakemSeat] = deck.splice(0, 5);
+    hands[opponentSeat] = deck.splice(0, 5);
+  }
 
   return {
+    mode,
     hakemSeat,
-    dealerSeat: previousSeat(hakemSeat),
+    dealerSeat: previousSeat(hakemSeat, mode),
     trumpSuit: null,
-    phase: "AWAITING_TRUMP",
+    phase: "DECLARE_TRUMP",
     hands,
+    stock: deck.splice(0),
+    deadPile: [],
+    drawnCard: null,
+    refillTurnSeat: null,
+    refillPreview: null,
     trickCounts: emptyScores(),
     trickNumber: 1,
     trick: createTrick(hakemSeat),
     roundWinner: null,
     awardedPoints: null,
-    summary: null,
+    summary: mode === 2 ? `${labelForSeat(hakemSeat, 2)} became Hakem.` : null,
   };
 };
 
-const completeDeal = (round: RoundState, deck: Card[]) => {
+const completeDeal = (round: RoundState) => {
   let seatCursor: Seat = round.hakemSeat;
-  while (deck.length > 0) {
+  while (round.stock.length > 0) {
     if (round.hands[seatCursor].length < 13) {
-      round.hands[seatCursor].push(deck.shift() as Card);
+      round.hands[seatCursor].push(round.stock.shift() as Card);
     }
-    seatCursor = nextSeat(seatCursor);
+    seatCursor = nextSeat(seatCursor, round.mode);
   }
 };
 
-const createMatch = (pointTarget: MatchTarget, hakemSeat: Seat, deck: Card[]): MatchState => ({
+const createMatch = (
+  mode: PlayerMode,
+  pointTarget: MatchTarget,
+  hakemSeat: Seat,
+  deck: Card[],
+): MatchState => ({
+  mode,
   pointTarget,
   points: emptyScores(),
   roundNumber: 1,
-  round: dealInitialRound(hakemSeat, deck),
+  round: dealInitialRound(mode, hakemSeat, deck),
   winner: null,
   summary: null,
 });
 
+const refillGoalReached = (round: RoundState, seat: Seat) => round.hands[seat].length >= 13;
+
+const ensureStock = (round: RoundState, rng: () => number) => {
+  if (round.stock.length > 0) {
+    return;
+  }
+  if (round.deadPile.length === 0) {
+    throw new Error("No cards remain in the stock.");
+  }
+  round.stock = shuffleSpecificDeck(round.deadPile, rng);
+  round.deadPile = [];
+};
+
+const shuffleSpecificDeck = (cards: Card[], rng: () => number) => {
+  const deck = [...cards];
+  for (let index = deck.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(rng() * (index + 1));
+    [deck[index], deck[swapIndex]] = [deck[swapIndex], deck[index]];
+  }
+  return deck;
+};
+
+const drawForRefillTurn = (round: RoundState, seat: Seat, rng: () => number) => {
+  ensureStock(round, rng);
+  round.drawnCard = round.stock.shift() as Card;
+  round.refillTurnSeat = seat;
+};
+
+const findNextRefillSeat = (round: RoundState, afterSeat: Seat): Seat | null => {
+  const seats = activeSeatsForMode(2);
+  for (let offset = 1; offset <= seats.length; offset += 1) {
+    const candidate = seats[(seats.indexOf(afterSeat) + offset) % seats.length] as Seat;
+    if (!refillGoalReached(round, candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+};
+
+const startRefillPhase = (round: RoundState, rng: () => number) => {
+  round.phase = "REFILL";
+  round.refillPreview = null;
+  drawForRefillTurn(round, round.hakemSeat, rng);
+  round.summary = `${labelForSeat(round.hakemSeat, 2)} is drawing.`;
+};
+
+const finalizeRefillIfComplete = (round: RoundState, rng: () => number) => {
+  const next = round.refillTurnSeat !== null ? findNextRefillSeat(round, round.refillTurnSeat) : null;
+  if (next === null) {
+    round.phase = "IN_TRICK";
+    round.refillTurnSeat = null;
+    round.drawnCard = null;
+    round.summary = `${labelForSeat(round.hakemSeat, 2)} leads the first trick.`;
+    return;
+  }
+  drawForRefillTurn(round, next, rng);
+  round.summary = `${labelForSeat(next, 2)} is drawing.`;
+};
+
 export class HokmEngine {
   private readonly rng: () => number;
 
-  private pendingDeck: Card[] = [];
+  private readonly mode: PlayerMode;
 
   private nextHakemSeat: Seat = 0;
 
@@ -163,6 +295,7 @@ export class HokmEngine {
   constructor(
     pointTarget: MatchTarget,
     seriesTarget: SeriesTarget = 7,
+    modeOrRng: PlayerMode | (() => number) = 4,
     rng: () => number = randomValue,
   ) {
     if (!MATCH_TARGETS.includes(pointTarget)) {
@@ -171,10 +304,22 @@ export class HokmEngine {
     if (!SERIES_TARGETS.includes(seriesTarget)) {
       throw new Error("Invalid series target");
     }
+    const mode = typeof modeOrRng === "function" ? 4 : modeOrRng;
+    const resolvedRng = typeof modeOrRng === "function" ? modeOrRng : rng;
 
-    this.rng = rng;
-    this.nextHakemSeat = Math.floor(this.rng() * SEATS.length) as Seat;
+    if (!PLAYER_MODES.includes(mode)) {
+      throw new Error("Invalid player mode");
+    }
+
+    this.rng = resolvedRng;
+    this.mode = mode;
+    this.nextHakemSeat =
+      mode === 2
+        ? chooseHakemForTwoPlayers(this.rng)
+        : (Math.floor(this.rng() * activeSeatsForMode(4).length) as Seat);
+
     this.series = {
+      mode,
       bestOf: seriesTarget,
       wins: emptyScores(),
       matchNumber: 1,
@@ -195,7 +340,7 @@ export class HokmEngine {
 
   declareTrump(seat: Seat, suit: Suit): HokmTransition {
     const round = this.requireRound();
-    if (round.phase !== "AWAITING_TRUMP") {
+    if (round.phase !== "DECLARE_TRUMP") {
       throw new Error("Trump cannot be declared right now.");
     }
     if (round.hakemSeat !== seat) {
@@ -203,10 +348,104 @@ export class HokmEngine {
     }
 
     round.trumpSuit = suit;
-    completeDeal(round, this.pendingDeck);
-    round.phase = "IN_TRICK";
-    round.summary = `${labelForSeat(seat)} declared ${displaySuit(suit)} as Hokm.`;
+    if (this.mode === 4) {
+      completeDeal(round);
+      round.phase = "IN_TRICK";
+    } else {
+      round.phase = "HAKEM_DISCARD";
+    }
+    round.summary = `${labelForSeat(seat, this.mode)} declared ${displaySuit(suit)} as Hokm.`;
     return { kind: "none", message: round.summary };
+  }
+
+  discardCards(seat: Seat, cardCodes: string[]): HokmTransition {
+    const round = this.requireRound();
+    if (this.mode !== 2) {
+      throw new Error("Discarding is only available in two-player mode.");
+    }
+
+    const expectedCount =
+      round.phase === "HAKEM_DISCARD"
+        ? 3
+        : round.phase === "OPPONENT_DISCARD"
+          ? 2
+          : null;
+
+    if (expectedCount === null) {
+      throw new Error("Cards cannot be discarded right now.");
+    }
+
+    const expectedSeat =
+      round.phase === "HAKEM_DISCARD" ? round.hakemSeat : opposingSeat(round.hakemSeat);
+    if (seat !== expectedSeat) {
+      throw new Error("It is not your discard turn.");
+    }
+    if (cardCodes.length !== expectedCount || new Set(cardCodes).size !== expectedCount) {
+      throw new Error(`You must discard exactly ${expectedCount} cards.`);
+    }
+
+    const hand = round.hands[seat];
+    const discardIndexes = cardCodes.map((cardCode) => hand.findIndex((card) => card.code === cardCode));
+    if (discardIndexes.some((index) => index === -1)) {
+      throw new Error("You can only discard cards from your hand.");
+    }
+
+    const selected = hand.filter((card) => cardCodes.includes(card.code));
+    round.hands[seat] = hand.filter((card) => !cardCodes.includes(card.code));
+    round.deadPile.push(...selected);
+
+    if (round.phase === "HAKEM_DISCARD") {
+      round.phase = "OPPONENT_DISCARD";
+      round.summary = `${labelForSeat(seat, 2)} discarded 3 cards.`;
+      return { kind: "none", message: round.summary };
+    }
+
+    startRefillPhase(round, this.rng);
+    return { kind: "none", message: `${labelForSeat(seat, 2)} discarded 2 cards.` };
+  }
+
+  resolveRefill(seat: Seat, action: "keep" | "discard"): HokmTransition {
+    const round = this.requireRound();
+    if (this.mode !== 2 || round.phase !== "REFILL") {
+      throw new Error("Refill decisions are not allowed right now.");
+    }
+    if (round.refillTurnSeat !== seat) {
+      throw new Error("It is not your draw turn.");
+    }
+    if (!round.drawnCard) {
+      throw new Error("There is no drawn card to resolve.");
+    }
+
+    const firstCard = round.drawnCard;
+    round.drawnCard = null;
+    ensureStock(round, this.rng);
+    const secondCard = round.stock.shift() as Card;
+
+    if (action === "keep") {
+      round.hands[seat].push(firstCard);
+      round.deadPile.push(secondCard);
+      round.refillPreview = {
+        seat,
+        firstCard,
+        secondCard,
+        keptCardCode: firstCard.code,
+        decision: "keep_first",
+      };
+      finalizeRefillIfComplete(round, this.rng);
+      return { kind: "none", message: `${labelForSeat(seat, 2)} kept the first card.` };
+    }
+
+    round.deadPile.push(firstCard);
+    round.hands[seat].push(secondCard);
+    round.refillPreview = {
+      seat,
+      firstCard,
+      secondCard,
+      keptCardCode: secondCard.code,
+      decision: "keep_second",
+    };
+    finalizeRefillIfComplete(round, this.rng);
+    return { kind: "none", message: `${labelForSeat(seat, 2)} kept the second card.` };
   }
 
   playCard(seat: Seat, cardCode: string): HokmTransition {
@@ -239,8 +478,9 @@ export class HokmEngine {
       round.trick.ledSuit = card.suit;
     }
 
-    if (round.trick.cards.length < 4) {
-      round.trick.currentTurn = nextSeat(seat);
+    const trickSize = activeSeatsForMode(this.mode).length;
+    if (round.trick.cards.length < trickSize) {
+      round.trick.currentTurn = nextSeat(seat, this.mode);
       return { kind: "none" };
     }
 
@@ -250,14 +490,14 @@ export class HokmEngine {
       round.trick.ledSuit as Suit,
     );
     round.trick.winner = winner;
-    const winnerTeam = teamOf(winner);
+    const winnerTeam = teamOf(winner, this.mode);
     const loserTeam: Team = winnerTeam === "A" ? "B" : "A";
     round.trickCounts[winnerTeam] += 1;
 
     if (round.trickCounts[winnerTeam] >= 7) {
       const awardedPoints =
         round.trickCounts[loserTeam] === 0
-          ? winnerTeam === teamOf(round.hakemSeat)
+          ? winnerTeam === teamOf(round.hakemSeat, this.mode)
             ? 2
             : 3
           : 1;
@@ -270,7 +510,11 @@ export class HokmEngine {
       match.summary = round.summary;
 
       this.nextHakemSeat =
-        winnerTeam === teamOf(round.hakemSeat) ? round.hakemSeat : nextSeat(round.hakemSeat);
+        winnerTeam === teamOf(round.hakemSeat, this.mode)
+          ? round.hakemSeat
+          : this.mode === 2
+            ? opposingSeat(round.hakemSeat)
+            : nextSeat(round.hakemSeat, this.mode);
 
       if (match.points[winnerTeam] >= match.pointTarget) {
         match.winner = winnerTeam;
@@ -293,7 +537,7 @@ export class HokmEngine {
     }
 
     round.trickNumber += 1;
-    round.summary = `${labelForSeat(winner)} took the trick.`;
+    round.summary = `${labelForSeat(winner, this.mode)} took the trick.`;
     round.trick = createTrick(winner);
     return { kind: "none", message: round.summary };
   }
@@ -301,14 +545,18 @@ export class HokmEngine {
   startNextRound() {
     const match = this.requireMatch();
     match.roundNumber += 1;
-    this.pendingDeck = shuffleDeck(this.rng);
-    match.round = dealInitialRound(this.nextHakemSeat, this.pendingDeck);
+    const deck = shuffleDeck(this.rng);
+    const hakemSeat = this.mode === 2 ? this.nextHakemSeat : this.nextHakemSeat;
+    match.round = dealInitialRound(this.mode, hakemSeat, deck);
     match.summary = null;
   }
 
   startNextMatch(pointTarget: MatchTarget = this.requireMatch().pointTarget) {
-    this.pendingDeck = shuffleDeck(this.rng);
-    this.series.currentMatch = createMatch(pointTarget, this.nextHakemSeat, this.pendingDeck);
+    const deck = shuffleDeck(this.rng);
+    if (this.mode === 2 && !this.series.currentMatch) {
+      this.nextHakemSeat = chooseHakemForTwoPlayers(this.rng);
+    }
+    this.series.currentMatch = createMatch(this.mode, pointTarget, this.nextHakemSeat, deck);
   }
 
   advanceAfterMatch() {
@@ -325,7 +573,10 @@ export class HokmEngine {
     this.series.matchNumber = 1;
     this.series.winner = null;
     this.series.summary = null;
-    this.nextHakemSeat = Math.floor(this.rng() * SEATS.length) as Seat;
+    this.nextHakemSeat =
+      this.mode === 2
+        ? chooseHakemForTwoPlayers(this.rng)
+        : (Math.floor(this.rng() * activeSeatsForMode(4).length) as Seat);
     this.startNextMatch(pointTarget);
   }
 
@@ -356,4 +607,10 @@ export const displaySuit = (suit: Suit) =>
 export const isRedSuit = (suit: Suit) => suit === "hearts" || suit === "diamonds";
 
 export const teamLabel = (team: Team) => (team === "A" ? "Team A" : "Team B");
-export const labelForSeat = (seat: Seat) => ["South", "East", "North", "West"][seat];
+
+export const labelForSeat = (seat: Seat, mode: PlayerMode = 4) => {
+  if (mode === 2) {
+    return seat === 0 ? "South" : "North";
+  }
+  return ["South", "East", "North", "West"][seat];
+};

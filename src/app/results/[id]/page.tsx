@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { readResult } from "@/lib/server/results-store";
+import { formatLocalizedNumber, localizeDigits } from "@/lib/utils";
 
 type Props = {
   params: Promise<{
@@ -10,6 +11,8 @@ type Props = {
 export default async function ResultsPage({ params }: Props) {
   const { id } = await params;
   const result = await readResult(id);
+  const sideALabel = result?.mode === 2 ? "Player ۱" : "Team A";
+  const sideBLabel = result?.mode === 2 ? "Player ۲" : "Team B";
 
   if (!result) {
     return (
@@ -52,13 +55,13 @@ export default async function ResultsPage({ params }: Props) {
                 SERIES RESULT
               </p>
               <h1 className="mt-3 text-5xl font-semibold text-(--ivory)">
-                {result.winner === "A" ? "Team A" : "Team B"} won{" "}
-                {result.seriesWins.A}-{result.seriesWins.B}
+                {result.winner === "A" ? sideALabel : sideBLabel} won{" "}
+                {formatLocalizedNumber(result.seriesWins.A)}-{formatLocalizedNumber(result.seriesWins.B)}
               </h1>
               <p className="mt-4 max-w-2xl text-(--muted)">
-                Room {result.roomCode} played a Best of 7 series. Each match
+                Room {localizeDigits(result.roomCode)} played a Best of {formatLocalizedNumber(result.seriesTarget)} series. Each match
                 used a first-to-
-                {result.target} point target under the standard Hokm ruleset.
+                {formatLocalizedNumber(result.target)} point target under the standard Hokm ruleset.
               </p>
             </div>
             <Link
@@ -72,7 +75,7 @@ export default async function ResultsPage({ params }: Props) {
         <section className="grid gap-6 md:grid-cols-2">
           <div className="rounded-3xl border border-(--line) bg-(--glass) p-6 shadow-[0_30px_80px_rgba(0,0,0,0.35)] backdrop-blur-[10px]">
             <p className="font-mono text-[12px] uppercase tracking-[0.32em] text-(--gold)">
-              Team A
+              {sideALabel}
             </p>
             <ul className="mt-4 space-y-3">
               {result.teams.A.map((name) => (
@@ -84,7 +87,7 @@ export default async function ResultsPage({ params }: Props) {
           </div>
           <div className="rounded-3xl border border-(--line) bg-(--glass) p-6 shadow-[0_30px_80px_rgba(0,0,0,0.35)] backdrop-blur-[10px]">
             <p className="font-mono text-[12px] uppercase tracking-[0.32em] text-(--gold)">
-              Team B
+              {sideBLabel}
             </p>
             <ul className="mt-4 space-y-3">
               {result.teams.B.map((name) => (
@@ -102,7 +105,7 @@ export default async function ResultsPage({ params }: Props) {
           <ul className="mt-4 space-y-3 text-(--muted)">
             {result.matchSummaries.map((summary, index) => (
               <li key={`${summary}-${index}`}>
-                Match {index + 1}: {summary}
+                Match {formatLocalizedNumber(index + 1)}: {localizeDigits(summary)}
               </li>
             ))}
           </ul>

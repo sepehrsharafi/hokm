@@ -17,8 +17,8 @@ import {
   setStoredName,
 } from "@/lib/client/session";
 import { landingCopy, type LandingLanguage } from "@/lib/landing-copy";
-import type { MatchTarget } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import type { MatchTarget, PlayerMode } from "@/lib/types";
+import { cn, formatLocalizedNumber } from "@/lib/utils";
 
 type ModalMode = "create" | "join" | null;
 
@@ -27,9 +27,38 @@ type Props = {
   initialModal: ModalMode;
   initialJoinCode: string;
   initialTarget: MatchTarget;
+  initialMode: PlayerMode;
 };
 
 const codePattern = /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4}$/;
+const chipClass =
+  "min-w-16 xl:min-w-23.5 rounded-[14px] border px-5.5 py-5 text-center transition-[transform,border-color,background] duration-300 hover:-translate-y-1";
+const modalPrimaryButtonClass =
+  "mt-6 inline-flex w-full items-center justify-center rounded-full bg-[linear-gradient(180deg,var(--gold-soft),var(--gold))] px-5.5 py-3.25 text-[12px] font-bold uppercase tracking-[0.08em] text-[#241a08] shadow-[0_8px_30px_rgba(227,178,90,0.2)] transition-transform duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0";
+const modalSecondaryButtonClass =
+  "mt-3 inline-flex w-full items-center justify-center rounded-full border border-(--line) bg-(--glass) px-5.5 py-3.25 text-(--ivory) backdrop-blur-[10px] transition-transform duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0";
+
+const buildModalHref = (
+  language: LandingLanguage,
+  modal: Exclude<ModalMode, null>,
+  options?: {
+    mode?: PlayerMode;
+    target?: MatchTarget;
+  },
+) => {
+  const params = new URLSearchParams();
+  if (language === "fa") {
+    params.set("lang", "fa");
+  }
+  params.set("modal", modal);
+  if (options?.mode) {
+    params.set("mode", String(options.mode));
+  }
+  if (options?.target) {
+    params.set("target", String(options.target));
+  }
+  return `/?${params.toString()}`;
+};
 
 function useModalA11y(
   open: boolean,
@@ -95,6 +124,7 @@ function ModalShell({
   onClose,
   title,
   body,
+  language,
   children,
   initialFocusRef,
 }: {
@@ -102,6 +132,7 @@ function ModalShell({
   onClose: () => void;
   title: string;
   body: string;
+  language: LandingLanguage;
   children: React.ReactNode;
   initialFocusRef: React.RefObject<HTMLElement | null>;
 }) {
@@ -114,12 +145,12 @@ function ModalShell({
 
   return (
     <div
-      className="fixed inset-0 z-30 flex items-end justify-center bg-[rgba(5,6,8,0.6)] p-0 backdrop-blur-[12px] [animation:modalFade_0.25s_ease-out] sm:items-center sm:p-5"
+      className="fixed inset-0 z-30 flex items-center justify-center bg-[rgba(5,6,8,0.6)] p-5 backdrop-blur-[12px] [animation:modalFade_0.25s_ease-out]"
       onClick={onClose}
     >
       <div
         ref={dialogRef}
-        className="relative w-full rounded-t-[24px] border border-(--line) bg-[rgba(10,13,11,0.92)] p-7 shadow-[0_30px_90px_rgba(0,0,0,0.45)] [animation:modalSheet_0.3s_ease-out] sm:w-[min(100%,520px)] sm:rounded-3xl sm:[animation:modalPop_0.3s_ease-out]"
+        className="relative w-[min(90%,520px)] rounded-3xl border border-(--line) bg-[rgba(10,13,11,0.92)] p-7 shadow-[0_30px_90px_rgba(0,0,0,0.45)] [animation:modalPop_0.3s_ease-out]"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -127,16 +158,30 @@ function ModalShell({
       >
         <button
           type="button"
-          className="absolute right-3.5 top-3.5 flex h-9 w-9 items-center justify-center rounded-full border border-(--line) bg-transparent text-2xl leading-none text-(--ivory)"
+          className={cn(
+            "absolute top-3.5 flex h-9 w-9 items-center justify-center rounded-full border border-(--line) bg-transparent text-2xl leading-none text-(--ivory)",
+            language === "fa" ? "left-3.5" : "right-3.5",
+          )}
           aria-label="Close"
           onClick={onClose}
         >
           ×
         </button>
-        <h3 id={titleId} className="font-serif text-[26px] font-medium">
+        <h3
+          id={titleId}
+          className={cn(
+            "text-[26px] font-medium",
+            language === "fa" ? "font-fa-sans leading-[1.6]" : "font-serif",
+          )}
+        >
           {title}
         </h3>
-        <p className="mt-2.5 text-[14.5px] leading-[1.6] text-(--muted)">
+        <p
+          className={cn(
+            "mt-2.5 text-[14.5px] leading-[1.6] text-(--muted)",
+            language === "fa" && "text-[15.5px] leading-[1.9]",
+          )}
+        >
           {body}
         </p>
         {children}
@@ -150,8 +195,10 @@ export function LandingEntryModals({
   initialModal,
   initialJoinCode,
   initialTarget,
+  initialMode,
 }: Props) {
   const copy = landingCopy[language];
+  const formatNumber = (value: number) => formatLocalizedNumber(value, language);
   const router = useRouter();
   const sessionId = useMemo(() => getSessionId(), []);
   const [modal, setModal] = useState<ModalMode>(initialModal);
@@ -162,9 +209,8 @@ export function LandingEntryModals({
     typeof window === "undefined" ? "" : getStoredName(),
   );
   const [joinCode, setJoinCode] = useState(initialJoinCode);
+  const [mode, setMode] = useState<PlayerMode>(initialMode);
   const [target, setTarget] = useState<MatchTarget>(initialTarget);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [kotBonus, setKotBonus] = useState(true);
   const [createError, setCreateError] = useState<string | null>(null);
   const [joinError, setJoinError] = useState<string | null>(null);
   const [createLoading, setCreateLoading] = useState(false);
@@ -191,9 +237,15 @@ export function LandingEntryModals({
     router.replace(language === "en" ? "/" : "/?lang=fa", { scroll: false });
   };
 
-  const createHref =
-    language === "en" ? "/?modal=create" : "/?lang=fa&modal=create";
-  const joinHref = language === "en" ? "/?modal=join" : "/?lang=fa&modal=join";
+  const createHref = buildModalHref(language, "create", { mode, target });
+  const joinHref = buildModalHref(language, "join");
+
+  useEffect(() => {
+    if (modal !== "create") {
+      return;
+    }
+    router.replace(createHref, { scroll: false });
+  }, [createHref, modal, router]);
 
   useEffect(() => {
     document
@@ -243,8 +295,8 @@ export function LandingEntryModals({
     socket.emit("create_room", {
       displayName: trimmed,
       sessionId,
+      mode,
       pointTarget: target,
-      kotBonus,
     });
   };
 
@@ -309,6 +361,7 @@ export function LandingEntryModals({
         onClose={closeModal}
         title={copy.createModalTitle}
         body={copy.createModalBody}
+        language={language}
         initialFocusRef={createInputRef}
       >
         <form onSubmit={submitCreate}>
@@ -328,7 +381,51 @@ export function LandingEntryModals({
               className={cn(
                 "font-mono text-[12px] uppercase tracking-[0.32em]",
                 language === "fa" &&
-                  "font-fa-sans normal-case tracking-[0.04em]",
+                  "font-fa-sans text-[13px] normal-case tracking-[0.04em]",
+              )}
+            >
+              {copy.players}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-3">
+              {[2, 4].map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={cn(
+                    chipClass,
+                    mode === value
+                      ? "border-transparent bg-[linear-gradient(180deg,var(--gold-soft),var(--gold))] text-[#241a08]"
+                      : "border-(--line) bg-black/20 hover:border-[rgba(227,178,90,0.5)]",
+                  )}
+                  onClick={() => setMode(value as PlayerMode)}
+                >
+                  <span
+                    className={cn(
+                      "block font-mono text-[20px] xl:text-[32px] font-bold leading-none",
+                      language === "fa" && "fa-number-display",
+                    )}
+                  >
+                    {formatNumber(value)}
+                  </span>
+                  <span
+                    className={cn(
+                      "mt-1.5 block text-[10px] uppercase tracking-[0.18em] opacity-70",
+                      language === "fa" &&
+                        "font-fa-sans text-[12px] normal-case tracking-[0.04em]",
+                    )}
+                  >
+                    {value === 2 ? copy.twoPlayers : copy.fourPlayers}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="mt-5">
+            <p
+              className={cn(
+                "font-mono text-[12px] uppercase tracking-[0.32em]",
+                language === "fa" &&
+                  "font-fa-sans text-[13px] normal-case tracking-[0.04em]",
               )}
             >
               {copy.matchLength}
@@ -339,23 +436,26 @@ export function LandingEntryModals({
                   key={chip.value}
                   type="button"
                   className={cn(
-                    "min-w-[94px] rounded-[14px] border px-5.5 py-5 text-center transition-[transform,border-color,background] duration-300 hover:-translate-y-1",
+                    chipClass,
                     chip.value === target
                       ? "border-transparent bg-[linear-gradient(180deg,var(--gold-soft),var(--gold))] text-[#241a08]"
                       : "border-(--line) bg-black/20 hover:border-[rgba(227,178,90,0.5)]",
                   )}
                   onClick={() => setTarget(chip.value)}
                 >
-                  <span className="block font-mono text-[34px] font-bold leading-none">
-                    {language === "fa"
-                      ? chip.value.toLocaleString("fa-IR")
-                      : chip.value}
+                  <span
+                    className={cn(
+                      "block font-mono text-[20px] xl:text-[32px] font-bold leading-none",
+                      language === "fa" && "fa-number-display",
+                    )}
+                  >
+                    {formatNumber(chip.value)}
                   </span>
                   <span
                     className={cn(
                       "mt-1.5 block text-[10px] uppercase tracking-[0.18em] opacity-70",
                       language === "fa" &&
-                        "font-fa-sans normal-case tracking-[0.04em]",
+                        "font-fa-sans text-[12px] normal-case tracking-[0.04em]",
                     )}
                   >
                     {chip.label}
@@ -364,32 +464,16 @@ export function LandingEntryModals({
               ))}
             </div>
           </div>
-          <button
-            type="button"
-            className={cn(
-              "mt-5 bg-transparent p-0 font-mono text-[12px] uppercase tracking-[0.32em] text-(--muted)",
-              language === "fa" && "font-fa-sans normal-case tracking-[0.04em]",
-            )}
-            onClick={() => setAdvancedOpen((current) => !current)}
-          >
-            {copy.advanced}
-          </button>
-          {advancedOpen ? (
-            <label className="mt-3 flex items-center justify-between text-(--ivory)">
-              <span>{copy.kotBonus}</span>
-              <input
-                type="checkbox"
-                checked={kotBonus}
-                onChange={(event) => setKotBonus(event.target.checked)}
-              />
-            </label>
-          ) : null}
           {createError ? (
             <p className="mt-3 text-sm text-(--crimson)">{createError}</p>
           ) : null}
           <button
             type="submit"
-            className="mt-6 inline-flex w-full items-center justify-center rounded-full bg-[linear-gradient(180deg,var(--gold-soft),var(--gold))] px-5.5 py-3.25 text-[12px] font-bold uppercase tracking-[0.08em] text-[#241a08] shadow-[0_8px_30px_rgba(227,178,90,0.2)] transition-transform duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0"
+            className={cn(
+              modalPrimaryButtonClass,
+              language === "fa" &&
+                "font-fa-sans text-[13px] normal-case tracking-[0.04em]",
+            )}
             disabled={createLoading}
           >
             {createLoading ? copy.creating : copy.createTable}
@@ -402,6 +486,7 @@ export function LandingEntryModals({
         onClose={closeModal}
         title={copy.joinModalTitle}
         body={copy.joinModalBody}
+        language={language}
         initialFocusRef={joinCode.trim() ? joinNameRef : joinCodeRef}
       >
         <form onSubmit={submitJoin}>
@@ -439,7 +524,11 @@ export function LandingEntryModals({
           ) : null}
           <button
             type="submit"
-            className="mt-6 inline-flex w-full items-center justify-center rounded-full bg-[linear-gradient(180deg,var(--gold-soft),var(--gold))] px-5.5 py-3.25 text-[12px] font-bold uppercase tracking-[0.08em] text-[#241a08] shadow-[0_8px_30px_rgba(227,178,90,0.2)] transition-transform duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0"
+            className={cn(
+              modalPrimaryButtonClass,
+              language === "fa" &&
+                "font-fa-sans text-[13px] normal-case tracking-[0.04em]",
+            )}
             disabled={joinLoading}
           >
             {joinLoading ? copy.joining : copy.joinTable}
@@ -447,7 +536,11 @@ export function LandingEntryModals({
           {joinCanSpectate ? (
             <button
               type="button"
-              className="mt-3 inline-flex w-full items-center justify-center rounded-full border border-(--line) bg-(--glass) px-5.5 py-3.25 text-(--ivory) backdrop-blur-[10px] transition-transform duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0"
+              className={cn(
+                modalSecondaryButtonClass,
+                language === "fa" &&
+                  "font-fa-sans text-[13px] normal-case tracking-[0.04em]",
+              )}
               disabled={joinLoading}
               onClick={() => attemptJoin(true)}
             >

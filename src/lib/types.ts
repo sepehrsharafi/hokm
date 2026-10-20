@@ -1,6 +1,7 @@
 export const SEATS = [0, 1, 2, 3] as const;
 export const MATCH_TARGETS = [3, 5, 7] as const;
 export const SERIES_TARGETS = [1, 3, 5, 7] as const;
+export const PLAYER_MODES = [2, 4] as const;
 export const SUITS = ["spades", "hearts", "diamonds", "clubs"] as const;
 export const RANKS = ["A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2"] as const;
 
@@ -8,12 +9,17 @@ export type Seat = (typeof SEATS)[number];
 export type Team = "A" | "B";
 export type MatchTarget = (typeof MATCH_TARGETS)[number];
 export type SeriesTarget = (typeof SERIES_TARGETS)[number];
+export type PlayerMode = (typeof PLAYER_MODES)[number];
 export type Suit = (typeof SUITS)[number];
 export type Rank = (typeof RANKS)[number];
 
 export type GameStage =
   | "LOBBY"
-  | "AWAITING_TRUMP"
+  | "CHOOSE_HAKEM"
+  | "DECLARE_TRUMP"
+  | "HAKEM_DISCARD"
+  | "OPPONENT_DISCARD"
+  | "REFILL"
   | "IN_TRICK"
   | "ROUND_OVER"
   | "MATCH_OVER"
@@ -52,12 +58,33 @@ export type TrickState = {
   winner: Seat | null;
 };
 
+export type RefillPreviewState = {
+  seat: Seat;
+  firstCard: Card;
+  secondCard: Card | null;
+  keptCardCode: string | null;
+  decision: "pending" | "keep_first" | "keep_second";
+};
+
 export type RoundState = {
+  mode: PlayerMode;
   hakemSeat: Seat;
   dealerSeat: Seat;
   trumpSuit: Suit | null;
-  phase: "AWAITING_TRUMP" | "IN_TRICK" | "ROUND_OVER";
+  phase:
+    | "CHOOSE_HAKEM"
+    | "DECLARE_TRUMP"
+    | "HAKEM_DISCARD"
+    | "OPPONENT_DISCARD"
+    | "REFILL"
+    | "IN_TRICK"
+    | "ROUND_OVER";
   hands: Record<Seat, Card[]>;
+  stock: Card[];
+  deadPile: Card[];
+  drawnCard: Card | null;
+  refillTurnSeat: Seat | null;
+  refillPreview: RefillPreviewState | null;
   trickCounts: Record<Team, number>;
   trickNumber: number;
   trick: TrickState;
@@ -67,6 +94,7 @@ export type RoundState = {
 };
 
 export type MatchState = {
+  mode: PlayerMode;
   pointTarget: MatchTarget;
   points: Record<Team, number>;
   roundNumber: number;
@@ -76,6 +104,7 @@ export type MatchState = {
 };
 
 export type SeriesState = {
+  mode: PlayerMode;
   bestOf: SeriesTarget;
   wins: Record<Team, number>;
   matchNumber: number;
@@ -84,10 +113,57 @@ export type SeriesState = {
   summary: string | null;
 };
 
+export type PublicRoundState = {
+  mode: PlayerMode;
+  hakemSeat: Seat;
+  dealerSeat: Seat;
+  trumpSuit: Suit | null;
+  phase:
+    | "CHOOSE_HAKEM"
+    | "DECLARE_TRUMP"
+    | "HAKEM_DISCARD"
+    | "OPPONENT_DISCARD"
+    | "REFILL"
+    | "IN_TRICK"
+    | "ROUND_OVER";
+  handCounts: Record<Seat, number>;
+  stockCount: number;
+  deadPileCount: number;
+  refillTurnSeat: Seat | null;
+  refillPreview: RefillPreviewState | null;
+  trickCounts: Record<Team, number>;
+  trickNumber: number;
+  trick: TrickState;
+  roundWinner: Team | null;
+  awardedPoints: number | null;
+  summary: string | null;
+};
+
+export type PublicMatchState = {
+  mode: PlayerMode;
+  pointTarget: MatchTarget;
+  points: Record<Team, number>;
+  roundNumber: number;
+  round: PublicRoundState | null;
+  winner: Team | null;
+  summary: string | null;
+};
+
+export type PublicSeriesState = {
+  mode: PlayerMode;
+  bestOf: SeriesTarget;
+  wins: Record<Team, number>;
+  matchNumber: number;
+  currentMatch: PublicMatchState | null;
+  winner: Team | null;
+  summary: string | null;
+};
+
 export type LobbyState = {
   roomCode: string;
   hostSeat: Seat;
   seats: Array<SeatAssignment | null>;
+  mode: PlayerMode;
   pointTarget: MatchTarget;
   seriesTarget: SeriesTarget;
 };
@@ -106,9 +182,10 @@ export type PublicGameState = {
   stage: GameStage;
   roomCode: string;
   hostSeat: Seat;
+  mode: PlayerMode;
   pointTarget: MatchTarget;
   seriesTarget: SeriesTarget;
-  series: SeriesState | null;
+  series: PublicSeriesState | null;
   seats: Array<SeatAssignment | null>;
   spectators: SpectatorSession[];
   pause: PauseState | null;
@@ -129,6 +206,7 @@ export type RoomSummary = {
   seatCount: number;
   spectatorCount: number;
   started: boolean;
+  mode: PlayerMode;
   pointTarget: MatchTarget;
   seriesTarget: SeriesTarget;
 };
@@ -143,6 +221,7 @@ export type ResultsSnapshot = {
   id: string;
   roomCode: string;
   createdAt: number;
+  mode: PlayerMode;
   target: MatchTarget;
   seriesTarget: SeriesTarget;
   seriesWins: Record<Team, number>;
@@ -155,6 +234,7 @@ export type ClientIntentMap = {
   create_room: {
     displayName: string;
     sessionId: string;
+    mode?: PlayerMode;
     pointTarget?: MatchTarget;
     seriesTarget?: SeriesTarget;
   };
@@ -195,6 +275,16 @@ export type ClientIntentMap = {
     roomCode: string;
     sessionId: string;
     suit: Suit;
+  };
+  discard_cards: {
+    roomCode: string;
+    sessionId: string;
+    cardCodes: string[];
+  };
+  resolve_refill: {
+    roomCode: string;
+    sessionId: string;
+    action: "keep" | "discard";
   };
   play_card: {
     roomCode: string;

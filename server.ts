@@ -8,7 +8,7 @@ import type { ClientIntentMap, ServerEventMap } from "@/lib/types";
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = "localhost";
-const port = Number(process.env.PORT ?? 4000);
+const port = Number(process.env.PORT ?? 3000);
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 
@@ -21,16 +21,20 @@ app.prepare().then(() => {
 
   const emitSnapshot = (roomCode: string) => {
     const room = roomManager.getRoom(roomCode);
-    [...room.seats.filter(Boolean), ...room.spectators].forEach((participant) => {
-      if (!participant?.connected) {
-        return;
-      }
-      io.to(participant.sessionId).emit(
-        "state",
-        roomManager.buildSnapshot(roomCode, participant.sessionId),
-      );
-    });
+    [...room.seats.filter(Boolean), ...room.spectators].forEach(
+      (participant) => {
+        if (!participant?.connected) {
+          return;
+        }
+        io.to(participant.sessionId).emit(
+          "state",
+          roomManager.buildSnapshot(roomCode, participant.sessionId),
+        );
+      },
+    );
   };
+
+  roomManager.setBroadcaster(emitSnapshot);
 
   io.on("connection", (socket) => {
     const sendError = (message: string) => {
@@ -95,6 +99,14 @@ app.prepare().then(() => {
     withHandler(
       "declare_trump",
       (payload) => roomManager.declareTrump(payload).code,
+    );
+    withHandler(
+      "discard_cards",
+      (payload) => roomManager.discardCards(payload).code,
+    );
+    withHandler(
+      "resolve_refill",
+      (payload) => roomManager.resolveRefill(payload).code,
     );
     withHandler("play_card", (payload) => roomManager.playCard(payload).code);
     withHandler("play_again", (payload) => roomManager.playAgain(payload).code);
